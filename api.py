@@ -19,6 +19,8 @@ import wave
 
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse
+
 
 from starlette.middleware.cors import CORSMiddleware  #引入 CORS中间件模块
 
@@ -63,6 +65,8 @@ class TTS_Request(BaseModel):
     speed: int = 3
     media_type: str = "wav"
     streaming: int = 0
+    filename: str = "output.wav"
+    filefolder: str = "jobs"
 
 
 
@@ -278,7 +282,6 @@ def generate_tts_audio(text_file,seed=2581,speed=1, oral=0, laugh=0, bk=4, min_l
 async def tts_handle(req:dict):
 
     media_type = req["media_type"]
-
     print(req["streaming"])
     print(req["media_type"])
 
@@ -291,7 +294,37 @@ async def tts_handle(req:dict):
         sr = 24000
 
         audio_data = pack_audio(BytesIO(), audio_data, sr, media_type).getvalue()
+        # 构建文件保存路径
+        # 从请求中获取filefolder，这里假设req["filefolder"]是"Journey"
+        # filefolder = req["filefolder"]
+        filefolder = 'Journey'
+        base_folder = "./output"  # 基础文件夹路径
+        full_path = os.path.join(base_folder, filefolder)
 
+        # 检查文件夹是否存在
+        if os.path.exists(full_path):
+            print(f"Folder '{full_path}' already exists.")
+        else:
+            os.makedirs(full_path)
+            print(f"Folder '{full_path}' created.")
+
+        # 构建文件完整路径
+        filename = f"{req['filename']}"
+        file_path = os.path.join(full_path, filename)
+        print("filename path:", filename)
+        # 保存音频到文件
+        with open(file_path, "wb") as f:
+            f.write(audio_data)
+
+
+        # # 确保文件目录存在
+        # os.makedirs(filefolder, exist_ok=True)
+        # print("File path:", file_path)
+        # # Save audio to a file
+        # # file_path = "./generated_audio.wav"
+        # with open(file_path, "wb") as f:
+        #     f.write(audio_data)
+        FileResponse(file_path, media_type=f"audio/{media_type}", filename=filename)
 
         return Response(audio_data, media_type=f"audio/{media_type}")
 
@@ -317,12 +350,13 @@ async def tts_handle(req:dict):
 
 
 @app.get("/")
-async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0):
+async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0, filename: str="generated_audio"):
     req = {
         "text": text,
         "media_type": media_type,
         "seed": seed,
         "streaming": streaming,
+        "filename": filename
     }
     return await tts_handle(req)
 
@@ -351,7 +385,21 @@ async def tts_to_audio(request: TTS_Request):
     req["seed"] = llama_seed
 
     return await tts_handle(req)
+# 假设音频文件存储在服务器的这个目录下
+# 假设音频文件存储在服务器的这个目录下
+BASE_AUDIO_DIR = "output"
 
+@app.get("/audio/{folder}/{filename}")
+async def get_audio(folder: str, filename: str):
+    # 构建完整的文件路径
+    file_path = os.path.join(BASE_AUDIO_DIR, folder, filename)
+    
+    # 检查文件是否存在
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail=f"File {filename} in folder {folder} not found")
+
+    # 返回音频文件
+    return FileResponse(file_path, media_type="audio/wav")
 if __name__ == "__main__":
 
     chat.load_models(source="custom", custom_path="models", compile=False)
