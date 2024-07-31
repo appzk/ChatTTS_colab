@@ -66,7 +66,7 @@ class TTS_Request(BaseModel):
     media_type: str = "wav"
     streaming: int = 0
     filename: str = "output.wav"
-    filefolder: str = "jobs"
+    collection: str = "jobs"
 
 
 
@@ -284,6 +284,8 @@ async def tts_handle(req:dict):
     media_type = req["media_type"]
     print(req["streaming"])
     print(req["media_type"])
+    base_folder = "../output"  # 基础文件夹路径
+    collection = req["collection"]
 
     if not req["streaming"]:
     
@@ -295,11 +297,8 @@ async def tts_handle(req:dict):
 
         audio_data = pack_audio(BytesIO(), audio_data, sr, media_type).getvalue()
         # 构建文件保存路径
-        # 从请求中获取filefolder，这里假设req["filefolder"]是"Journey"
-        # filefolder = req["filefolder"]
-        filefolder = 'Journey'
-        base_folder = "./output"  # 基础文件夹路径
-        full_path = os.path.join(base_folder, filefolder)
+        # 从请求中获取collection，这里假设req["collection"]是"Journey"
+        full_path = os.path.join(base_folder, collection, "audio")
 
         # 检查文件夹是否存在
         if os.path.exists(full_path):
@@ -317,13 +316,6 @@ async def tts_handle(req:dict):
             f.write(audio_data)
 
 
-        # # 确保文件目录存在
-        # os.makedirs(filefolder, exist_ok=True)
-        # print("File path:", file_path)
-        # # Save audio to a file
-        # # file_path = "./generated_audio.wav"
-        # with open(file_path, "wb") as f:
-        #     f.write(audio_data)
         FileResponse(file_path, media_type=f"audio/{media_type}", filename=filename)
 
         return Response(audio_data, media_type=f"audio/{media_type}")
@@ -350,13 +342,14 @@ async def tts_handle(req:dict):
 
 
 @app.get("/")
-async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0, filename: str="generated_audio"):
+async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0, filename: str="generated_audio", collection: str="default"):
     req = {
         "text": text,
         "media_type": media_type,
         "seed": seed,
         "streaming": streaming,
-        "filename": filename
+        "filename": filename,
+        "collection": collection
     }
     return await tts_handle(req)
 
