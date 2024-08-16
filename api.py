@@ -163,8 +163,8 @@ def pack_audio(io_buffer:BytesIO, data:np.ndarray, rate:int, media_type:str):
     return io_buffer
 
 
-def generate_tts_audio(text_file,seed=2581,speed=1, oral=0, laugh=0, bk=4, min_length=80, batch_size=5, temperature=0.01, top_P=0.7,
-                       top_K=20,streaming=0,cur_tqdm=None):
+def generate_tts_audio(text_file, seed=2581,speed=1, oral=0, laugh=0, bk=4, min_length=80, batch_size=5, temperature=0.01, top_P=0.7,
+                       top_K=20,streaming=0,cur_tqdm=None, speaker_type='seed', roleid=None, pt_file=None):
 
     from utils import combine_audio, save_audio, batch_split
 
@@ -197,7 +197,33 @@ def generate_tts_audio(text_file,seed=2581,speed=1, oral=0, laugh=0, bk=4, min_l
 
 
     deterministic(seed)
-    rnd_spk_emb = chat.sample_random_speaker()
+    # rnd_spk_emb = chat.sample_random_speaker()
+
+    print(f"speaker_type: {speaker_type}")
+    if speaker_type == "seed":
+        if seed in [None, -1, 0, "", "random"]:
+            seed = np.random.randint(0, 9999)
+        deterministic(seed)
+        rnd_spk_emb = chat.sample_random_speaker()
+    elif speaker_type == "role":
+        # 从 JSON 文件中读取数据
+        with open('./slct_voice_240605.json', 'r', encoding='utf-8') as json_file:
+            slct_idx_loaded = json.load(json_file)
+        # 将包含 Tensor 数据的部分转换回 Tensor 对象
+        for key in slct_idx_loaded:
+            tensor_list = slct_idx_loaded[key]["tensor"]
+            slct_idx_loaded[key]["tensor"] = torch.tensor(tensor_list)
+        # 将音色 tensor 打包进params_infer_code，固定使用此音色发音，调低temperature
+        rnd_spk_emb = slct_idx_loaded[roleid]["tensor"]
+        # temperature = 0.001
+    elif speaker_type == "pt":
+        print(pt_file)
+        rnd_spk_emb = torch.load(pt_file)
+        print(rnd_spk_emb.shape)
+        if rnd_spk_emb.shape != (768,):
+            raise ValueError("维度应为 768。")
+    else:
+        raise ValueError(f"Invalid speaker_type: {speaker_type}. ")
     params_infer_code = {
         'spk_emb': rnd_spk_emb,
         'prompt': f'[speed_{speed}]',
@@ -286,10 +312,11 @@ async def tts_handle(req:dict):
     print(req["media_type"])
     base_folder = "../output"  # 基础文件夹路径
     collection = req["collection"]
+    speaker_type = req["speaker_type"] or "pt"
 
     if not req["streaming"]:
     
-        audio_data = next(generate_tts_audio(req["text"],req["seed"]))
+        audio_data = next(generate_tts_audio(req["text"], req["seed"], speaker_type=speaker_type, pt_file=req["pt_file"]))
 
         # print(audio_data)
 
@@ -325,7 +352,7 @@ async def tts_handle(req:dict):
     
     else:
         
-        tts_generator = generate_tts_audio(req["text"],req["seed"],streaming=1)
+        tts_generator = generate_tts_audio(req["text"], req["seed"],streaming=1, speaker_type=speaker_type, pt_file=req["pt_file"])
 
         sr = 24000
 
@@ -349,7 +376,9 @@ async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,stream
         "seed": seed,
         "streaming": streaming,
         "filename": filename,
-        "collection": collection
+        "collection": collection,
+        "speaker_type": "pt",
+        "pt_file": "voices/male/seed_1457_restored_emb.pt"
     }
     return await tts_handle(req)
 
