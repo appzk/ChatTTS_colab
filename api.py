@@ -313,6 +313,7 @@ async def tts_handle(req:dict):
     base_folder = "../output"  # 基础文件夹路径
     collection = req["collection"]
     speaker_type = req["speaker_type"] or "pt"
+    speed = req["speed"]
 
     if not req["streaming"]:
     
@@ -369,7 +370,7 @@ async def tts_handle(req:dict):
 
 
 @app.get("/")
-async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0, filename: str="generated_audio", collection: str="default"):
+async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,streaming:int = 0, filename: str="generated_audio", collection: str="default", speaker_type: str="pt", speed: int = 1, oral: int = 0, laugh: int = 0, bk: int = 0, min_length: int = 0, batch_size: int = 1, temperature: float = 0.9, top_P: float = 0.9, top_K: int = 40, roleid: int= None, refine_text: bool = True):
     req = {
         "text": text,
         "media_type": media_type,
@@ -377,7 +378,8 @@ async def tts_get(text: str = None,media_type:str = "wav",seed:int = 2581,stream
         "streaming": streaming,
         "filename": filename,
         "collection": collection,
-        "speaker_type": "pt",
+        "speaker_type": speaker_type,
+        "speed": speed,
         "pt_file": "voices/male/seed_1457_restored_emb.pt"
     }
     return await tts_handle(req)
